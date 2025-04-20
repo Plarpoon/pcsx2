@@ -2495,19 +2495,12 @@ D3D_SHADER_MACRO* GSDevice11::ShaderMacro::GetPtr()
 	return (D3D_SHADER_MACRO*)mout.data();
 }
 
-/// Checks that we weren't sent things we declared we don't support
-/// Clears things we don't support that can be quietly disabled
-static void preprocessSel(GSDevice11::PSSelector& sel)
-{
-	pxAssert(sel.write_rg  == 0); // Not supported, shouldn't be sent
-}
-
 void GSDevice11::RenderHW(GSHWDrawConfig& config)
 {
-	pxAssert(!config.require_full_barrier); // We always specify no support so it shouldn't request this
-	preprocessSel(config.ps);
+	// No full texture barriers, check it just in case.
+	pxAssert(!config.require_full_barrier);
 
-	GSVector2i rtsize = (config.rt ? config.rt : config.ds)->GetSize();
+	const GSVector2i rtsize = (config.rt ? config.rt : config.ds)->GetSize();
 
 	GSTexture* colclip_rt = g_gs_device->GetColorClipTexture();
 

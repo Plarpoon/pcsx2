@@ -1331,22 +1331,22 @@ void GSDevice12::CopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& r,
 {
 	g_perfmon.Put(GSPerfMon::TextureCopies, 1);
 
-	GSTexture12* const sTexVK = static_cast<GSTexture12*>(sTex);
-	GSTexture12* const dTexVK = static_cast<GSTexture12*>(dTex);
-	const GSVector4i dtex_rc(0, 0, dTexVK->GetWidth(), dTexVK->GetHeight());
+	GSTexture12* const sTex12 = static_cast<GSTexture12*>(sTex);
+	GSTexture12* const dTex12 = static_cast<GSTexture12*>(dTex);
+	const GSVector4i dtex_rc(0, 0, dTex12->GetWidth(), dTex12->GetHeight());
 
-	if (sTexVK->GetState() == GSTexture::State::Cleared)
+	if (sTex12->GetState() == GSTexture::State::Cleared)
 	{
 		// source is cleared. if destination is a render target, we can carry the clear forward
-		if (dTexVK->IsRenderTargetOrDepthStencil())
+		if (dTex12->IsRenderTargetOrDepthStencil())
 		{
 			if (dtex_rc.eq(r))
 			{
 				// pass it forward if we're clearing the whole thing
-				if (sTexVK->IsDepthStencil())
-					dTexVK->SetClearDepth(sTexVK->GetClearDepth());
+				if (sTex12->IsDepthStencil())
+					dTex12->SetClearDepth(sTex12->GetClearDepth());
 				else
-					dTexVK->SetClearColor(sTexVK->GetClearColor());
+					dTex12->SetClearColor(sTex12->GetClearColor());
 
 				return;
 			}
@@ -1355,19 +1355,19 @@ void GSDevice12::CopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& r,
 				// otherwise we need to do an attachment clear
 				EndRenderPass();
 
-				dTexVK->SetState(GSTexture::State::Dirty);
+				dTex12->SetState(GSTexture::State::Dirty);
 
-				if (dTexVK->GetType() != GSTexture::Type::DepthStencil)
+				if (dTex12->GetType() != GSTexture::Type::DepthStencil)
 				{
-					dTexVK->TransitionToState(D3D12_RESOURCE_STATE_RENDER_TARGET);
+					dTex12->TransitionToState(D3D12_RESOURCE_STATE_RENDER_TARGET);
 					GetCommandList()->ClearRenderTargetView(
-						dTexVK->GetWriteDescriptor(), sTexVK->GetUNormClearColor().v, 0, nullptr);
+						dTex12->GetWriteDescriptor(), sTex12->GetUNormClearColor().v, 0, nullptr);
 				}
 				else
 				{
-					dTexVK->TransitionToState(D3D12_RESOURCE_STATE_DEPTH_WRITE);
+					dTex12->TransitionToState(D3D12_RESOURCE_STATE_DEPTH_WRITE);
 					GetCommandList()->ClearDepthStencilView(
-						dTexVK->GetWriteDescriptor(), D3D12_CLEAR_FLAG_DEPTH, sTexVK->GetClearDepth(), 0, 0, nullptr);
+						dTex12->GetWriteDescriptor(), D3D12_CLEAR_FLAG_DEPTH, sTex12->GetClearDepth(), 0, 0, nullptr);
 				}
 
 				return;
@@ -1375,31 +1375,31 @@ void GSDevice12::CopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& r,
 		}
 
 		// commit the clear to the source first, then do normal copy
-		sTexVK->CommitClear();
+		sTex12->CommitClear();
 	}
 
 	// if the destination has been cleared, and we're not overwriting the whole thing, commit the clear first
 	// (the area outside of where we're copying to)
-	if (dTexVK->GetState() == GSTexture::State::Cleared && !dtex_rc.eq(r))
-		dTexVK->CommitClear();
+	if (dTex12->GetState() == GSTexture::State::Cleared && !dtex_rc.eq(r))
+		dTex12->CommitClear();
 
 	EndRenderPass();
 
-	sTexVK->TransitionToState(D3D12_RESOURCE_STATE_COPY_SOURCE);
-	sTexVK->SetUseFenceCounter(GetCurrentFenceValue());
-	if (m_tfx_textures[0] && sTexVK->GetSRVDescriptor() == m_tfx_textures[0])
+	sTex12->TransitionToState(D3D12_RESOURCE_STATE_COPY_SOURCE);
+	sTex12->SetUseFenceCounter(GetCurrentFenceValue());
+	if (m_tfx_textures[0] && sTex12->GetSRVDescriptor() == m_tfx_textures[0])
 		PSSetShaderResource(0, nullptr, false);
 
-	dTexVK->TransitionToState(D3D12_RESOURCE_STATE_COPY_DEST);
-	dTexVK->SetUseFenceCounter(GetCurrentFenceValue());
+	dTex12->TransitionToState(D3D12_RESOURCE_STATE_COPY_DEST);
+	dTex12->SetUseFenceCounter(GetCurrentFenceValue());
 
 	D3D12_TEXTURE_COPY_LOCATION srcloc;
-	srcloc.pResource = sTexVK->GetResource();
+	srcloc.pResource = sTex12->GetResource();
 	srcloc.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
 	srcloc.SubresourceIndex = 0;
 
 	D3D12_TEXTURE_COPY_LOCATION dstloc;
-	dstloc.pResource = dTexVK->GetResource();
+	dstloc.pResource = dTex12->GetResource();
 	dstloc.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
 	dstloc.SubresourceIndex = 0;
 
@@ -1407,7 +1407,7 @@ void GSDevice12::CopyRect(GSTexture* sTex, GSTexture* dTex, const GSVector4i& r,
 		static_cast<UINT>(r.bottom), 1u};
 	GetCommandList()->CopyTextureRegion(&dstloc, destX, destY, 0, &srcloc, &srcbox);
 
-	dTexVK->SetState(GSTexture::State::Dirty);
+	dTex12->SetState(GSTexture::State::Dirty);
 }
 
 void GSDevice12::StretchRect(GSTexture* sTex, const GSVector4& sRect, GSTexture* dTex, const GSVector4& dRect,
@@ -2175,11 +2175,11 @@ void GSDevice12::IASetIndexBuffer(const void* index, size_t count)
 
 void GSDevice12::OMSetRenderTargets(GSTexture* rt, GSTexture* ds, const GSVector4i& scissor)
 {
-	GSTexture12* vkRt = static_cast<GSTexture12*>(rt);
-	GSTexture12* vkDs = static_cast<GSTexture12*>(ds);
-	pxAssert(vkRt || vkDs);
+	GSTexture12* Rt12 = static_cast<GSTexture12*>(rt);
+	GSTexture12* Ds12 = static_cast<GSTexture12*>(ds);
+	pxAssert(Rt12 || Ds12);
 
-	if (m_current_render_target != vkRt || m_current_depth_target != vkDs)
+	if (m_current_render_target != Rt12 || m_current_depth_target != Ds12)
 	{
 		// framebuffer change
 		EndRenderPass();
@@ -2188,35 +2188,35 @@ void GSDevice12::OMSetRenderTargets(GSTexture* rt, GSTexture* ds, const GSVector
 	{
 		// Framebuffer unchanged, but check for clears. Have to restart render pass, unlike Vulkan.
 		// We'll take care of issuing the actual clear there, because we have to start one anyway.
-		if (vkRt && vkRt->GetState() != GSTexture::State::Dirty)
+		if (Rt12 && Rt12->GetState() != GSTexture::State::Dirty)
 		{
-			if (vkRt->GetState() == GSTexture::State::Cleared)
+			if (Rt12->GetState() == GSTexture::State::Cleared)
 				EndRenderPass();
 			else
-				vkRt->SetState(GSTexture::State::Dirty);
+				Rt12->SetState(GSTexture::State::Dirty);
 		}
-		if (vkDs && vkDs->GetState() != GSTexture::State::Dirty)
+		if (Ds12 && Ds12->GetState() != GSTexture::State::Dirty)
 		{
-			if (vkDs->GetState() == GSTexture::State::Cleared)
+			if (Ds12->GetState() == GSTexture::State::Cleared)
 				EndRenderPass();
 			else
-				vkDs->SetState(GSTexture::State::Dirty);
+				Ds12->SetState(GSTexture::State::Dirty);
 		}
 	}
 
-	m_current_render_target = vkRt;
-	m_current_depth_target = vkDs;
+	m_current_render_target = Rt12;
+	m_current_depth_target = Ds12;
 
 	if (!InRenderPass())
 	{
-		if (vkRt)
-			vkRt->TransitionToState(D3D12_RESOURCE_STATE_RENDER_TARGET);
-		if (vkDs)
-			vkDs->TransitionToState(D3D12_RESOURCE_STATE_DEPTH_WRITE);
+		if (Rt12)
+			Rt12->TransitionToState(D3D12_RESOURCE_STATE_RENDER_TARGET);
+		if (Ds12)
+			Ds12->TransitionToState(D3D12_RESOURCE_STATE_DEPTH_WRITE);
 	}
 
 	// This is used to set/initialize the framebuffer for tfx rendering.
-	const GSVector2i size = vkRt ? vkRt->GetSize() : vkDs->GetSize();
+	const GSVector2i size = Rt12 ? Rt12->GetSize() : Ds12->GetSize();
 	const D3D12_VIEWPORT vp{0.0f, 0.0f, static_cast<float>(size.x), static_cast<float>(size.y), 0.0f, 1.0f};
 
 	SetViewport(vp);
@@ -3813,6 +3813,9 @@ GSTexture12* GSDevice12::SetupPrimitiveTrackingDATE(GSHWDrawConfig& config, Pipe
 
 void GSDevice12::RenderHW(GSHWDrawConfig& config)
 {
+	// No full texture barriers, check it just in case.
+	pxAssert(!config.require_full_barrier);
+
 	// Destination Alpha Setup
 	const bool stencil_DATE = (config.destination_alpha == GSHWDrawConfig::DestinationAlphaMode::Stencil ||
 							   config.destination_alpha == GSHWDrawConfig::DestinationAlphaMode::StencilOne);
