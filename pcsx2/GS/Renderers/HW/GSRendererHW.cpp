@@ -4995,7 +4995,8 @@ __ri bool GSRendererHW::EmulateChannelShuffle(GSTextureCache::Target* src, bool 
 		// Hitman suffers from this, not sure on the exact scenario at the moment, but we need the barrier.
 		if (PRIM->ABE && m_context->ALPHA.IsCdInBlend())
 		{
-			if (m_prim_overlap == PRIM_OVERLAP_NO || !g_gs_device->Features().texture_barrier)
+			// No overlap will swap full barrier with one barrier.
+			if (!g_gs_device->Features().texture_barrier)
 				m_conf.require_one_barrier = true;
 			else
 				m_conf.require_full_barrier = true;
@@ -6286,10 +6287,8 @@ __ri void GSRendererHW::HandleTextureHazards(const GSTextureCache::Target* rt, c
 		{
 			m_conf.tex = nullptr;
 			m_conf.ps.tex_is_fb = true;
-			if (m_prim_overlap == PRIM_OVERLAP_NO || !g_gs_device->Features().texture_barrier)
-				m_conf.require_one_barrier = true;
-			else
-				m_conf.require_full_barrier = true;
+			// No overlap will swap full barrier with one barrier.
+			m_conf.require_full_barrier = true;
 
 			unscaled_size = rt->GetUnscaledSize();
 			scale = rt->GetScale();
